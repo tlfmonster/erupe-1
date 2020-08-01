@@ -6,7 +6,11 @@ import (
 )
 
 // MsgMhfGetLobbyCrowd represents the MSG_MHF_GET_LOBBY_CROWD
-type MsgMhfGetLobbyCrowd struct{}
+type MsgMhfGetLobbyCrowd struct{
+	AckHandle uint32
+	Server    uint32
+	Room      uint32
+}
 
 // Opcode returns the ID associated with this packet type.
 func (m *MsgMhfGetLobbyCrowd) Opcode() network.PacketID {
@@ -15,7 +19,10 @@ func (m *MsgMhfGetLobbyCrowd) Opcode() network.PacketID {
 
 // Parse parses the packet from binary
 func (m *MsgMhfGetLobbyCrowd) Parse(bf *byteframe.ByteFrame) error {
-	panic("Not implemented")
+	m.AckHandle = bf.ReadUint32()
+	m.Server = bf.ReadUint32()
+	m.Room = bf.ReadUint32()
+	return nil
 }
 
 // Build builds a binary packet from the current data.

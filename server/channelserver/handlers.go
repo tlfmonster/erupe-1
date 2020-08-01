@@ -1532,22 +1532,22 @@ func handleMsgMhfCheckDailyCafepoint(s *Session, p mhfpacket.MHFPacket) {
 	var t = time.Now().In(time.FixedZone("UTC+9", 9*60*60))
 	year, month, day := t.Date()
 	midday := time.Date(year, month, day, 12, 0, 0, 0, t.Location())
-	if t.After(midday) {
+	if t.After(midday){
 		midday = midday.Add(24 * time.Hour)
 	}
 
 	// get time after which daily claiming would be valid from db
 	var dailyTime time.Time
-	err := s.server.db.QueryRow("SELECT daily_time FROM characters WHERE id = $1", s.charID).Scan(&dailyTime)
+	err := s.server.db.QueryRow("SELECT COALESCE(daily_time, $2) FROM characters WHERE id = $1", s.charID, time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)).Scan(&dailyTime)
 	if err != nil {
-		dailyTime = time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+		s.logger.Fatal("Failed to get daily_time savedata from db", zap.Error(err))
 	}
 
-	if t.After(dailyTime) {
-		// +6 netcafe points and setting next valid window
+	if t.After(dailyTime){
+		// +5 netcafe points and setting next valid window
 		_, err := s.server.db.Exec("UPDATE characters SET daily_time=$1, netcafe_points=netcafe_points::int + 5 WHERE id=$2", midday, s.charID)
 		if err != nil {
-			s.logger.Fatal("Failed to update platedata savedata in db", zap.Error(err))
+			s.logger.Fatal("Failed to update daily_time and netcafe_points savedata in db", zap.Error(err))
 		}
 		doAckBufSucceed(s, pkt.AckHandle, []byte{0x01, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01})
 	} else {
@@ -3128,7 +3128,17 @@ func handleMsgMhfSetEnhancedMinidata(s *Session, p mhfpacket.MHFPacket) {
 
 func handleMsgMhfSexChanger(s *Session, p mhfpacket.MHFPacket) {}
 
-func handleMsgMhfGetLobbyCrowd(s *Session, p mhfpacket.MHFPacket) {}
+func handleMsgMhfGetLobbyCrowd(s *Session, p mhfpacket.MHFPacket) {
+		// this requests a specific server's population but seems to have been
+		// broken at some point on live as every example response across multiple
+		// servers sends back the exact same information?
+		// It can be worried about later if we ever get to the point where there are
+		// full servers to actually need to migrate people from and empty ones to
+		pkt := p.(*mhfpacket.MsgMhfGetLobbyCrowd)
+		blankData := make([]byte, 0x320)
+		doAckBufSucceed(s, pkt.AckHandle, blankData)
+		doAckSimpleSucceed(s, pkt.AckHandle, []byte{0x00, 0x00, 0x00, 0x00})
+}
 
 func handleMsgSysReserve180(s *Session, p mhfpacket.MHFPacket) {}
 
